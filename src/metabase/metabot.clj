@@ -195,8 +195,8 @@
 
      (message->command-str {:text \"metabot list\"}) -> \"list\""
   [{:keys [text]}]
-  (when (seq text)
-    (second (re-matches #"^mea?ta?boa?t\s*(.*)$" text)))) ; handle typos like metaboat or meatbot
+    (when (seq text)
+      (str/lower-case (second (re-matches #".*(?i)mea?ta?boa?t\s*(.*)$" text))))) ; handle typos like metaboat or meatbot
 
 (defn- respond-to-message! [message response]
   (when response
