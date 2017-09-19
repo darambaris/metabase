@@ -122,17 +122,11 @@
     :else                          (throw (Exception. (format "I don't know what Card `%s` is. Give me a Card ID or name." card-id-or-name)))))
 
 
-;; -----------------------------------------------  metabot create card ----------------------------------- ;;
-(defn ^:metabot create
-  "Implementation command that creates a new question from an existing question. "
-  ([]
-    "I'm learning new comands.. \n The first command is create a new question from an existing question"))
-
 (defn ^:metabot show
   "Implementation of the `metabot show card <name-or-id>` command."
   ([]
    "Show which card? Give me a part of a card name or its ID and I can show it to you. If you don't know which card you want, try `metabot list`.")
-  ([card-id-or-name]
+  ([card-id-or-name] 
    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
      (do
        (with-metabot-permissions
@@ -146,6 +140,22 @@
   ;; If the card name comes without spaces, e.g. (show 'my 'wacky 'card) turn it into a string an recur: (show "my wacky card")
   ([word & more]
    (show (str/join " " (cons word more)))))
+
+;; ---------------------------------------- metabot unfound --------------------------------- ;;
+
+;; "Uh Oh! Don't we a question you would like to ask? \n Don't worry! Is there any question similar? Give me a part of a card name or its ID")
+
+(defn ^:metabot unlisted
+  "Implementation of the `metabot show card <name-or-id>` command."
+  ([]
+   "Uh Oh! Don't we a question you would like to ask?")
+  ([card-id-or-name]
+   (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
+     (let [cards (with-metabot-permissions
+                (filterv mi/can-read? (db/select [Card :id :name :dataset_query], {:where [:= :id card-id]})))]
+        (str "Here's your " (count cards) " most recent cards:\n" (format-cards cards)))
+    (throw (Exception. "Not Found"))))
+  ;; If the card name comes without spaces, e.g. (show 'my 'wacky 'card) turn it into a string an recur: (show "my wacky card")
 
 
 (defn meme:up-and-to-the-right
