@@ -92,12 +92,14 @@
                   (log/error (u/format-color '~'red (u/filtered-stacktrace e#)))
                   (slack/post-chat-message! *channel-id* (format-exception e#))))))
 
-(defn- format-cards
-  "Format a sequence of Cards as a nice multiline list for use in responses."
-  [cards]
+;; format vector var "cards" to use in command list 
+(defn- format-cards ;;defn- => private function with arguments [cards]
+  "Format a sequence of Cards as a nice multiline list for use in responses." ;;description
+  [cards] ;;declare vector 
+  ;; apply str (interpose "\n" => convert vector positions to string separated by "\n"
   (apply str (interpose "\n" (for [{id :id, card-name :name} cards]
                                (format "%d.  <%s|\"%s\">" id (urls/card-url id) card-name)))))
-
+  ;; create 2 keys {id and card-name} format %d -> id and %s card-name
 
 (defn ^:metabot list
   "Implementation of the `metabot list cards` command."
@@ -119,6 +121,12 @@
         (symbol? card-id-or-name)) (card-with-name card-id-or-name)
     :else                          (throw (Exception. (format "I don't know what Card `%s` is. Give me a Card ID or name." card-id-or-name)))))
 
+
+;; -----------------------------------------------  metabot create card ----------------------------------- ;;
+(defn ^:metabot create
+  "Implementation command that creates a new question from an existing question. "
+  ([]
+    "I'm learning new comands.. \n The first command is create a new question from an existing question"))
 
 (defn ^:metabot show
   "Implementation of the `metabot show card <name-or-id>` command."
