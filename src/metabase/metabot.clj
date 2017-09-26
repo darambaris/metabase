@@ -12,7 +12,8 @@
              [stream :as s]]
             [metabase
              [pulse :as pulse]
-             [util :as u]]
+             [util :as u]
+             [metabot_extra :as bot]]
             [metabase.api.common :refer [*current-user-permissions-set* read-check]]
             [metabase.integrations.slack :as slack]
             [metabase.models
@@ -101,14 +102,6 @@
                                (format "%d.  <%s|\"%s\">" id (urls/card-url id) card-name)))))
   ;; create 2 keys {id and card-name} format %d -> id and %s card-name
 
-;; format vector var "cards" to use in command list 
-(defn- format-cards-query ;;defn- => private function with arguments [cards]
- "Format a sequence of Cards as a nice multiline list for use in responses." ;;description
-  [cards] ;;declare vector 
-  ;;apply str (interpose "\n" => convert vector positions to string separated by "\n"
-  (apply str (interpose "\n" (for [{id :id, card-name :name, display :display} cards]
-                              (format "%d.  <%s|\"%s\"> %s" id (urls/card-url id) card-name display))))) 
-  ;; create 2 keys {id and card-name} format %d -> id and %s card-name
 
 (defn ^:metabot list
   "Implementation of the `metabot list cards` command."
@@ -150,24 +143,23 @@
   ([word & more]
    (show (str/join " " (cons word more)))))
 
-;; ---------------------------------------- metabot unfound --------------------------------- ;;
+;; ---------------------------------------- metabot display --------------------------------- ;;
 (defn ^:metabot display
-  "Change the visualization of a card."
+  "This function changes the visualization of a question on Metabase."
   ([]
-    "Deseja trocar a visualizacao de um card? Passe o ID e o tipo de grafico")
-  ([type, card-id-or-name]
-  (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
-    (do
-      (with-metabot-permissions
-         (read-check Card card-id))
-      (when-let [card (Card :id card-id, :archived false)]
-        (update-in card [:display] (keyword type)
-        (let [{:keys [creator_id dataset_query display]} card] 
-           (format "display: %s \n dataset_query: %s" display dataset_query)
-        )) 
-      )
-  
-    )
+    "Use: \n
+     \"metabot display types\" - to see the graphic types available \n
+     \"metabot display ID\" - to see the graphic type of the choosed question")
+  ([card-id-or-list]
+    (cond
+      (string? card-id-or-list) (format "The graphic types available are: \n Scalar, Table, Line, Bar, Row Chart")
+      (integer? card-id-or-list) 
+          (let [{card-name :name, display :display} (db/select-one [Card :id :name :display], :id card-id-or-list)] 
+            format("The visualization of card with name %s is %s" card-name display)
+          )))
+  ([type, card-id-or-list]
+  (if-let [{card-id :id} (id-or-name->card card-id-or-list)]
+      (db/update! Card card-id :display (keyword type))
   (throw (Exception. "Not Found")))))
 
 (defn ^:metabot unlisted
@@ -176,15 +168,15 @@
    "Uh Oh! Don't we a question you would like to ask?")
   ([card-id-or-name]
    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
-     (let [cards (with-metabot-permissions
-                (filterv mi/can-read? (db/select [Card :id :name :dataset_query :display], {:where [:= :id card-id]})))]
-        (str "Here's your " (count cards) " most recent cards:\n" (format-cards-query cards))))))
- 
+     ;;(let [cards (with-metabot-permissions
+       ;;         (filterv mi/can-read? (db/select [Card :id :name :dataset_query :result_metadata], {:where [:= :id card-id]})))]
+        ;;(str "Here's your " (count cards) " most recent cards:\n" (bot/format-cards-query cards))
+        (db/update! Card card-id :name "update: Quantidade de escolas ativas no Brasil"))))
 
 (defn meme:up-and-to-the-right
   "Implementation of the `metabot meme up-and-to-the-right <title>` command."
   {:meme :up-and-to-the-right}
-  [& _]
+    [& _]
   ":chart_with_upwards_trend:")
 
 (def ^:metabot ^:unlisted meme
