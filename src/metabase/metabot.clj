@@ -12,7 +12,8 @@
              [stream :as s]]
             [metabase
              [pulse :as pulse]
-             [util :as u]]
+             [util :as u]
+             [metabot_extra :as bot]]
             [metabase.api.common :refer [*current-user-permissions-set* read-check]]
             [metabase.integrations.slack :as slack]
             [metabase.models
@@ -92,11 +93,14 @@
                   (log/error (u/format-color '~'red (u/filtered-stacktrace e#)))
                   (slack/post-chat-message! *channel-id* (format-exception e#))))))
 
-(defn- format-cards
-  "Format a sequence of Cards as a nice multiline list for use in responses."
-  [cards]
+;; format vector var "cards" to use in command list 
+(defn- format-cards ;;defn- => private function with arguments [cards]
+  "Format a sequence of Cards as a nice multiline list for use in responses." ;;description
+  [cards] ;;declare vector 
+  ;; apply str (interpose "\n" => convert vector positions to string separated by "\n"
   (apply str (interpose "\n" (for [{id :id, card-name :name} cards]
                                (format "%d.  <%s|\"%s\">" id (urls/card-url id) card-name)))))
+  ;; create 2 keys {id and card-name} format %d -> id and %s card-name
 
 
 (defn ^:metabot list
@@ -124,7 +128,7 @@
   "Implementation of the `metabot show card <name-or-id>` command."
   ([]
    "Show which card? Give me a part of a card name or its ID and I can show it to you. If you don't know which card you want, try `metabot list`.")
-  ([card-id-or-name]
+  ([card-id-or-name] 
    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
      (do
        (with-metabot-permissions
@@ -139,11 +143,40 @@
   ([word & more]
    (show (str/join " " (cons word more)))))
 
+;; ---------------------------------------- metabot display --------------------------------- ;;
+(defn ^:metabot display
+  "This function changes the visualization of a question on Metabase."
+  ([]
+    "Use: \n
+     \"metabot display types\" - to see the graphic types available \n
+     \"metabot display ID\" - to see the graphic type of the choosed question")
+  ([card-id-or-list]
+    (cond
+      (string? card-id-or-list) (format "The graphic types available are: \n Scalar, Table, Line, Bar, Row Chart")
+      (integer? card-id-or-list) 
+          (let [{card-name :name, display :display} (db/select-one [Card :id :name :display], :id card-id-or-list)] 
+            format("The visualization of card with name %s is %s" card-name display)
+          )))
+  ([type, card-id-or-list]
+  (if-let [{card-id :id} (id-or-name->card card-id-or-list)]
+      (db/update! Card card-id :display (keyword type))
+  (throw (Exception. "Not Found")))))
+
+(defn ^:metabot unlisted
+  "Implementation of the `metabot show card <name-or-id>` command."
+  ([]
+   "Uh Oh! Don't we a question you would like to ask?")
+  ([card-id-or-name]
+   (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
+     ;;(let [cards (with-metabot-permissions
+       ;;         (filterv mi/can-read? (db/select [Card :id :name :dataset_query :result_metadata], {:where [:= :id card-id]})))]
+        ;;(str "Here's your " (count cards) " most recent cards:\n" (bot/format-cards-query cards))
+        (db/update! Card card-id :name "update: Quantidade de escolas ativas no Brasil"))))
 
 (defn meme:up-and-to-the-right
   "Implementation of the `metabot meme up-and-to-the-right <title>` command."
   {:meme :up-and-to-the-right}
-  [& _]
+    [& _]
   ":chart_with_upwards_trend:")
 
 (def ^:metabot ^:unlisted meme
@@ -278,7 +311,7 @@
 ;; we'll throttle this based on values of the `slack-token` setting; that way if someone changes its value they won't have to wait
 ;; whatever the exponential delay is before the connection is retried
 (def ^:private reconnection-attempt-throttler
-  (throttle/make-throttler nil :attempts-threshold 1, :initial-delay-ms 2000, :delay-exponent 1.3))
+  (throttle/make-throttler nil :attempts-threshold 1, :initial-delay-ms 200 , :delay-exponent 1.3))
 
 (defn- should-attempt-to-reconnect? ^Boolean []
   (boolean (u/ignore-exceptions
@@ -291,7 +324,7 @@
     ;; Every 2 seconds check to see if websocket connection is [still] open, [re-]open it if not
     (loop []
       (while (not (should-attempt-to-reconnect?))
-        (Thread/sleep 2000))
+        (Thread/sleep 200))
       (when (= (.getId (Thread/currentThread)) @websocket-monitor-thread-id)
         (try
           (when (or (not  @websocket)
