@@ -60,6 +60,8 @@
                  [dk.ative/docjure "1.11.0"]                          ; Excel export
                  [environ "1.1.0"]                                    ; easy environment management
                  [hiccup "1.0.5"]                                     ; HTML templating
+                 [enlive "1.1.6"]
+                 [clj-http "3.7.0"]
                  [honeysql "0.8.2"]                                   ; Transform Clojure data structures to SQL
                  [kixi/stats "0.3.8"                                  ; Various statistic measures implemented as transducers
                   :exclusions [org.clojure/test.check                 ; test.check and AVL trees are used in kixi.stats.random. Remove exlusion if using.

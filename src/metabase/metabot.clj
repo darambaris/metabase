@@ -143,6 +143,7 @@
   ([word & more]
    (show (str/join " " (cons word more)))))
 
+
 ;; ---------------------------------------- metabot display --------------------------------- ;;
 (defn ^:metabot display
   "This function changes the visualization of a question on Metabase."
@@ -155,12 +156,19 @@
       (string? card-id-or-list) (format "The graphic types available are: \n Scalar, Table, Line, Bar, Row Chart")
       (integer? card-id-or-list) 
           (let [{card-name :name, display :display} (db/select-one [Card :id :name :display], :id card-id-or-list)] 
-            format("The visualization of card with name %s is %s" card-name display)
+            (format "The visualization of card with name %s is %s" card-name display)
           )))
   ([type, card-id-or-list]
   (if-let [{card-id :id} (id-or-name->card card-id-or-list)]
       (db/update! Card card-id :display (keyword type))
   (throw (Exception. "Not Found")))))
+
+(defn- extract-filters
+  [card]
+  (for [{r :result_metadata} card]
+      (format "result_metadata: %s" r)))
+    ;;(for [{b :base_type} r]
+      ;;(format "base_type: %s" b))))
 
 (defn ^:metabot unlisted
   "Implementation of the `metabot show card <name-or-id>` command."
@@ -168,10 +176,15 @@
    "Uh Oh! Don't we a question you would like to ask?")
   ([card-id-or-name]
    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
+    (let [card (with-metabot-permissions
+                (db/select-one [Card :id :name :dataset_query :result_metadata], :id card-id-or-name))]
+        (str "Filters:\n" (extract-filters card))))))          
+
+
      ;;(let [cards (with-metabot-permissions
        ;;         (filterv mi/can-read? (db/select [Card :id :name :dataset_query :result_metadata], {:where [:= :id card-id]})))]
         ;;(str "Here's your " (count cards) " most recent cards:\n" (bot/format-cards-query cards))
-        (db/update! Card card-id :name "update: Quantidade de escolas ativas no Brasil"))))
+      ;;(db/update! Card card-id :name "update: Quantidade de escolas ativas no Brasil"))))
 
 (defn meme:up-and-to-the-right
   "Implementation of the `metabot meme up-and-to-the-right <title>` command."
