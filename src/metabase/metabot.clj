@@ -12,8 +12,7 @@
              [stream :as s]]
             [metabase
              [pulse :as pulse]
-             [util :as u]
-             [metabot_extra :as bot]]
+             [util :as u]]
             [metabase.api.common :refer [*current-user-permissions-set* read-check]]
             [metabase.integrations.slack :as slack]
             [metabase.models
@@ -155,12 +154,28 @@
       (string? card-id-or-list) (format "The graphic types available are: \n Scalar, Table, Line, Bar, Row Chart")
       (integer? card-id-or-list) 
           (let [{card-name :name, display :display} (db/select-one [Card :id :name :display], :id card-id-or-list)] 
-            format("The visualization of card with name %s is %s" card-name display)
+            (format "The visualization of card with name %s is %s" card-name display)
           )))
   ([type, card-id-or-list]
   (if-let [{card-id :id} (id-or-name->card card-id-or-list)]
       (db/update! Card card-id :display (keyword type))
   (throw (Exception. "Not Found")))))
+
+;;(defn costlist [lst]
+;;  (map #(str "Hello " % "!" ) lst)
+;;)
+;;(defn costlist2 [lst]
+;;  (zipmap (map first lst)
+;;          (remove nil? (map second lst))))
+
+(defn extract_filters [result_metadata]
+  (for [{display :display_name, special :special_type} result_metadata]
+    (cond
+      (nil? special)(str display)
+      (string? special) (str special)
+    )
+  )
+) 
 
 (defn ^:metabot unlisted
   "Implementation of the `metabot show card <name-or-id>` command."
@@ -168,10 +183,10 @@
    "Uh Oh! Don't we a question you would like to ask?")
   ([card-id-or-name]
    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
-     ;;(let [cards (with-metabot-permissions
-       ;;         (filterv mi/can-read? (db/select [Card :id :name :dataset_query :result_metadata], {:where [:= :id card-id]})))]
-        ;;(str "Here's your " (count cards) " most recent cards:\n" (bot/format-cards-query cards))
-        (db/update! Card card-id :name "update: Quantidade de escolas ativas no Brasil"))))
+     (let [{card-name :name, display :display, result_metadata :result_metadata, dataset_query :dataset_query} 
+      (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id-or-name)]
+        (extract_filters result_metadata) 
+    ))))
 
 (defn meme:up-and-to-the-right
   "Implementation of the `metabot meme up-and-to-the-right <title>` command."
