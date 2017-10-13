@@ -164,6 +164,7 @@
       (db/update! Card card-id :display (keyword type))
   (throw (Exception. "Not Found")))))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 ;;    A set of features that allows you to change card attributes like filters, 
 ;;    aggregations and special functions through Metabot.
@@ -254,6 +255,22 @@
   ;;      (format "" display)
   ;;    (string? special) (str special)))) 
 
+;;(defn costlist [lst]
+;;  (map #(str "Hello " % "!" ) lst)
+;;)
+;;(defn costlist2 [lst]
+;;  (zipmap (map first lst)
+;;          (remove nil? (map second lst))))
+
+(defn extract_filters [result_metadata]
+  (for [{display :display_name, special :special_type} result_metadata]
+    (cond
+      (nil? special)(str display)
+      (string? special) (str special)
+    )
+  )
+) 
+
 (defn ^:metabot unlisted
   "Implementation of the `metabot show card <name-or-id>` command."
   ([]
@@ -262,7 +279,7 @@
    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
      (let [{card-name :name, display :display, result_metadata :result_metadata, dataset_query :dataset_query} 
       (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id-or-name)]
-        (extract_filters result_metadata dataset_query)))))
+        (extract_filters result_metadata dataset_query))))))
 
 (defn meme:up-and-to-the-right
   "Implementation of the `metabot meme up-and-to-the-right <title>` command."
