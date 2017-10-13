@@ -17,6 +17,8 @@
             [metabase.integrations.slack :as slack]
             [metabase.models
              [card :refer [Card]]
+             [table :refer [Table]]
+             [field :refer [Field]]
              [interface :as mi]
              [permissions :refer [Permissions]]
              [permissions-group :as perms-group]
@@ -38,7 +40,7 @@
   []
   (db/select-field :object Permissions, :group_id (u/get-id (perms-group/metabot))))
 
-(defn- do-with-metabot-permissions [f]
+(defn do-with-metabot-permissions [f]
   (binding [*current-user-permissions-set* (delay (metabot-permissions))]
     (f)))
 
@@ -93,7 +95,7 @@
                   (slack/post-chat-message! *channel-id* (format-exception e#))))))
 
 ;; format vector var "cards" to use in command list 
-(defn- format-cards ;;defn- => private function with arguments [cards]
+(defn format-cards ;;defn- => private function with arguments [cards]
   "Format a sequence of Cards as a nice multiline list for use in responses." ;;description
   [cards] ;;declare vector 
   ;; apply str (interpose "\n" => convert vector positions to string separated by "\n"
@@ -115,7 +117,7 @@
              (throw (Exception. (str "Could you be a little more specific? I found these cards with names that matched:\n"
                                      (format-cards <>))))))))
 
-(defn- id-or-name->card [card-id-or-name]
+(defn id-or-name->card [card-id-or-name]
   (cond
     (integer? card-id-or-name)     (db/select-one [Card :id :name], :id card-id-or-name)
     (or (string? card-id-or-name)
@@ -161,6 +163,69 @@
       (db/update! Card card-id :display (keyword type))
   (throw (Exception. "Not Found")))))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+;;    A set of features that allows you to change card attributes like filters, 
+;;    aggregations and special functions through Metabot.
+;;    by: Jessika Darambaris 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- extract-display
+  [card]
+  (let [{card-display :display} card]
+    (format "%s" card-display))
+)
+
+(defn- extract-aggregations
+  [card]
+  (let [{{{card-aggregation :aggregation} :query} :dataset_query} card]
+    (format "%s" (get-in (get-in card-aggregation [0])[0]))))
+
+
+(defn- extract-breakouts
+  [card]
+  (let [{{{card-breakouts :breakout} :query} :dataset_query} card]
+    (apply str (interpose ", " (for [card-field (get-in card-breakouts [])]
+      (let [card-field-id (get-in card-field[1])]
+        (cond
+          (integer? card-field-id) 
+            (let [{field-name :display_name} (db/select-one [Field :display_name], :id card-field-id)]
+              (format "%s" field-name))))))))) 
+
+
+(defn- extract-table
+  [card]
+  (if-let [{{{card-table-id :source_table} :query} :dataset_query} card]
+    (cond
+      (integer? card-table-id) (let [{table-name :display_name} (db/select-one [Table :display_name], :id card-table-id)]
+                                  (format "%s" table-name)))))
+
+
+(defn ^:metabot info 
+  "This function allows see card infos like aggregations, filters and breakouts"
+  ([]
+    ("Show which info card? Give me a part of a card name or its ID and I can show it to you")
+  )
+  ([card-id-or-name]
+    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
+      (do (with-metabot-permissions
+        (read-check Card card-id))
+        (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
+          (str "Here's the card infos: "
+                "\n Card table: " (extract-table card)
+                "\n Card display: "(extract-display card)
+                "\n Card aggregations: "(extract-aggregations card)
+                "\n Card breakouts: "(extract-breakouts card)))))))
+
+
+(defn- extract_filters [result_metadata, dataset_query]
+  (str dataset_query))
+;;  (for [{display :display_name, special :special_type} result_metadata]
+;;    (cond
+ ;;     (nil? special)
+  ;;      (format "" display)
+  ;;    (string? special) (str special)))) 
+
 ;;(defn costlist [lst]
 ;;  (map #(str "Hello " % "!" ) lst)
 ;;)
@@ -185,8 +250,7 @@
    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
      (let [{card-name :name, display :display, result_metadata :result_metadata, dataset_query :dataset_query} 
       (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id-or-name)]
-        (extract_filters result_metadata) 
-    ))))
+        (extract_filters result_metadata dataset_query))))))
 
 (defn meme:up-and-to-the-right
   "Implementation of the `metabot meme up-and-to-the-right <title>` command."
@@ -377,3 +441,4 @@
     (log/info "MetaBot already running. Killing the previous WebSocket listener first.")
     (stop-metabot!))
   (start-metabot!))
+
