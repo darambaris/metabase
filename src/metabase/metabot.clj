@@ -13,7 +13,8 @@
             [metabase
              [pulse :as pulse]
              [util :as u]]
-            [metabase.api.common :refer [*current-user-permissions-set* read-check]]
+            [metabase.api.common :refer [*current-user-permissions-set* read-check]]      
+            [metabase.api.common :refer [*current-user-permissions-set* write-check]]        
             [metabase.integrations.slack :as slack]
             [metabase.models
              [card :refer [Card]]
@@ -200,6 +201,12 @@
                                   (format "%s" table-name)))))
 
 
+
+(defn- field-with-name [field-name]
+  (first (u/prog1 (db/select [Field :id :name], :%lower.name [:like (str \% (str/lower-case field-name) \%)])
+           (when (> (count <>) 1)
+             (throw (Exception. (str "Could you be a little more specific? I found these fields with names that matched:\n")))))))
+
 (defn ^:metabot info 
   "This function allows see card infos like aggregations, filters and breakouts"
   ([]
@@ -215,6 +222,28 @@
                 "\n Card display: "(extract-display card)
                 "\n Card aggregations: "(extract-aggregations card)
                 "\n Card breakouts: "(extract-breakouts card)))))))
+
+
+  (defn ^:metabot add group-by
+    ([card-id-or-name, field-name]
+      (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
+        (do (with-metabot-permissions
+          (write-check Card card-id))
+            (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
+              (if-let [{field-id :id} (field-with-name field-name)]
+                  ;; TO DO: insert new register on database 
+                )            
+      )
+  ))))
+
+(defn update-teste 
+  ([card, field-id]
+  (let [{{{card-breakouts :breakout} :query} :dataset_query} card]
+    (let [card-field (get-in card-breakouts [])]
+      (let [new-breakout (conj card-field "[\"field-id\" 3]")] ;; GET field-id
+        (let [new-card (update-in card [:dataset_query :query] assoc :breakout new-breakout)]
+            (str new-card)))))))
+
 
 
 (defn- extract_filters [result_metadata, dataset_query]
