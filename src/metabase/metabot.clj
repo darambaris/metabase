@@ -12,10 +12,12 @@
              [stream :as s]]
             [metabase
              [pulse :as pulse]
-             [util :as u]]
+             [util :as u]
+             [events :as events]]
             [metabase.api.common :refer [*current-user-permissions-set* read-check]]      
             [metabase.api.common :refer [*current-user-permissions-set* write-check]]        
             [metabase.integrations.slack :as slack]
+            [metabase.metabot_extra :as bot]
             [metabase.models
              [card :refer [Card]]
              [table :refer [Table]]
@@ -26,7 +28,8 @@
              [setting :as setting :refer [defsetting]]]
             [metabase.util.urls :as urls]
             [throttle.core :as throttle]
-            [toucan.db :as db]))
+            [toucan.db :as db]
+            [toucan.hydrate :refer [hydrate]]))
 
 (defsetting metabot-enabled
   "Enable MetaBot, which lets you search for and view your saved questions directly via Slack."
@@ -145,6 +148,16 @@
   ([word & more]
    (show (str/join " " (cons word more)))))
 
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+;;    A set of commands that allows you to change card attributes like filters,                                ;;
+;;    aggregations and special functions through Metabot.                                                      ;;
+;;    Use functions from metabot_extra (bot)                                                                   ;;
+;;    by: Jessika Darambaris                                                                                   ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;; ---------------------------------------- metabot display --------------------------------- ;;
 (defn ^:metabot display
   "This function changes the visualization of a question on Metabase."
@@ -164,86 +177,36 @@
       (db/update! Card card-id :display (keyword type))
   (throw (Exception. "Not Found")))))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
-;;    A set of features that allows you to change card attributes like filters, 
-;;    aggregations and special functions through Metabot.
-;;    by: Jessika Darambaris 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn- extract-display
-  [card]
-  (let [{card-display :display} card]
-    (format "%s" card-display))
-)
-
-(defn- extract-aggregations
-  [card]
-  (let [{{{card-aggregation :aggregation} :query} :dataset_query} card]
-    (format "%s" (get-in (get-in card-aggregation [0])[0]))))
-
-
-(defn- extract-breakouts
-  [card]
-  (let [{{{card-breakouts :breakout} :query} :dataset_query} card]
-    (apply str (interpose ", " (for [card-field (get-in card-breakouts [])]
-      (let [card-field-id (get-in card-field[1])]
-        (cond
-          (integer? card-field-id) 
-            (let [{field-name :display_name} (db/select-one [Field :display_name], :id card-field-id)]
-              (format "%s" field-name))))))))) 
-
-
-(defn- extract-table
-  [card]
-  (if-let [{{{card-table-id :source_table} :query} :dataset_query} card]
-    (cond
-      (integer? card-table-id) (let [{table-name :display_name} (db/select-one [Table :display_name], :id card-table-id)]
-                                  (format "%s" table-name)))))
-
-
-
-(defn- field-with-name [field-name]
-  (first (u/prog1 (db/select [Field :id :name], :%lower.name [:like (str \% (str/lower-case field-name) \%)])
-           (when (> (count <>) 1)
-             (throw (Exception. (str "Could you be a little more specific? I found these fields with names that matched:\n")))))))
-
+;; show card infos like table, display, aggregations and breakouts  
 (defn ^:metabot info 
-  "This function allows see card infos like aggregations, filters and breakouts"
+  "This function shows card infos like aggregations, filters and breakouts"
   ([]
-    ("Show which info card? Give me a part of a card name or its ID and I can show it to you")
-  )
+    (str "Show which info card? Give me a part of a card name or its ID and I can show it to you"))
   ([card-id-or-name]
-    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
+    (if-let [{card-id :id} (id-or-name->card card-id-or-name)] ;; verify if was passed card name or card id
       (do (with-metabot-permissions
         (read-check Card card-id))
         (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
-          (str "Here's the card infos: "
-                "\n Card table: " (extract-table card)
-                "\n Card display: "(extract-display card)
-                "\n Card aggregations: "(extract-aggregations card)
-                "\n Card breakouts: "(extract-breakouts card)))))))
+          (bot/format-info-card card))))))
 
+(defn- field-with-name 
+  ([field-name,card]
+    (let [{{{card-table-id :source_table} :query} :dataset_query} card]
+      (first (u/prog1 (db/select [Field :id :name], :%lower.name [:like (str \% (str/lower-case field-name) \%)], :table_id card-table-id)
+        (when (> (count <>) 1)
+          (throw (Exception. (str "Could you be a little more specific? I found these fields with names that matched:\n")))))))))
 
-  (defn ^:metabot add group-by
+  ;; update own card, to do: create def add new card 
+  (defn ^:metabot add-group-by
     ([card-id-or-name, field-name]
       (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
         (do (with-metabot-permissions
           (write-check Card card-id))
             (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
-              (if-let [{field-id :id} (field-with-name field-name)]
-                  ;; TO DO: insert new register on database 
-                )            
-      )
-  ))))
+              (if-let [{field-id :id} (field-with-name field-name card)]
+                 (bot/insert-card (bot/update-breakout card field-id))))))))
 
-(defn update-teste 
-  ([card, field-id]
-  (let [{{{card-breakouts :breakout} :query} :dataset_query} card]
-    (let [card-field (get-in card-breakouts [])]
-      (let [new-breakout (conj card-field "[\"field-id\" 3]")] ;; GET field-id
-        (let [new-card (update-in card [:dataset_query :query] assoc :breakout new-breakout)]
-            (str new-card)))))))
+
 
 
 
@@ -279,7 +242,11 @@
    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
      (let [{card-name :name, display :display, result_metadata :result_metadata, dataset_query :dataset_query} 
       (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id-or-name)]
-        (extract_filters result_metadata dataset_query))))))
+        (extract_filters result_metadata dataset_query)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+;;   END CODE by: Jessika Darambaris                                                                           ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn meme:up-and-to-the-right
   "Implementation of the `metabot meme up-and-to-the-right <title>` command."
