@@ -199,16 +199,17 @@
 ;; update own card, to do: create def add new card 
 (defn ^:metabot add-group-by
   ([]
-    (str "I can add a new aggregation to the chosen card. Give me ID card and the field name you want to add."))
+    (str "I can add a new aggregation to the chosen card. Give me ID card and the field name you want to add. \n
+          Opticionally, you can give me the new card name :wink:"))
   ([one-argument]
     (str "Uh oh! I need two arguments! :neutral_face: \n Give me ID card and the field name you want to add."))
-  ([card-id-or-name, field-name]
+  ([card-id-or-name, field-name & [card-name]]
     (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
       (do (with-metabot-permissions
         (read-check Card card-id))
           (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
             (if-let [{field-id :id} (field-with-name field-name card)]
-              (let [{card-id :id} (bot/insert-card (bot/update-breakout card field-id))]
+              (let [{card-id :id} (bot/insert-card (bot/update-name (bot/update-breakout card field-id) card-name))] 
                 (show card-id))))))))
 
 (defn- extract_filters [result_metadata, dataset_query]

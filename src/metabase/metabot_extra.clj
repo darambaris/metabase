@@ -75,7 +75,7 @@
       ;; visualization depends agreggation type
       (case func  
             ;; count -> count of rows table name
-            "count" (str "count of " (first (re-find #"(/S+)" (extract-table card))))
+            "count" (str "count of " (first (str/split (str/lower-case (extract-table card)) #"\d+")))
             "sum" (str "is sum")
             (nil?) (str "There is no aggregation here.")))))
 
@@ -90,6 +90,9 @@
                                 (string? (extract-breakouts card)) (extract-breakouts card))))
 
 ;-------------------------------------- metabot add-group-by (aux functions) ---------------------------------------------------;
+;; metabot choose the new question name according to query features
+(defn- new-name [new-card]
+  (str (extract-aggregations new-card) " grouped by " (extract-breakouts new-card))) 
 
 ;; update into json card the new breakout and return new card
 (defn update-breakout [card, field-id]
@@ -98,12 +101,16 @@
       (let [new-breakout (conj card-field (edn/read-string (format "[\"field-id\" %d]" field-id)))] 
         (update-in card [:dataset_query :query] assoc :breakout new-breakout)))))
 
-
+(defn update-name 
+  ([card, card-name]
+    (cond 
+      (empty? card-name)  (assoc-in card [:name] (new-name card))              
+      (string? card-name) (assoc-in card [:name] (str card-name)))))
 ; ------------------------------------- common functions -----------------------------------------------------------------------;
 
 
 ;; insert new card 
-(defn insert-card
+(defn insert-card 
   ([{:keys [dataset_query description display name visualization_settings collection_id result_metadata]}]
 ;; {name                   su/NonBlankString
 ;; description            (s/maybe su/NonBlankString)
