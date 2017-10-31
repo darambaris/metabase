@@ -196,19 +196,20 @@
         (when (> (count <>) 1)
           (throw (Exception. (str "Could you be a little more specific? I found these fields with names that matched:\n")))))))))
 
-  ;; update own card, to do: create def add new card 
-  (defn ^:metabot add-group-by
-    ([card-id-or-name, field-name]
-      (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
-        (do (with-metabot-permissions
-          (write-check Card card-id))
-            (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
-              (if-let [{field-id :id} (field-with-name field-name card)]
-                 (bot/insert-card (bot/update-breakout card field-id))))))))
-
-
-
-
+;; update own card, to do: create def add new card 
+(defn ^:metabot add-group-by
+  ([]
+    (str "I can add a new aggregation to the chosen card. Give me ID card and the field name you want to add."))
+  ([one-argument]
+    (str "Uh oh! I need two arguments! :neutral_face: \n Give me ID card and the field name you want to add."))
+  ([card-id-or-name, field-name]
+    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
+      (do (with-metabot-permissions
+        (read-check Card card-id))
+          (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
+            (if-let [{field-id :id} (field-with-name field-name card)]
+              (let [new-card (bot/insert-card (bot/update-breakout card field-id))]
+                (pr-str new-card))))))))
 
 (defn- extract_filters [result_metadata, dataset_query]
   (str dataset_query))

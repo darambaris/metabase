@@ -100,30 +100,31 @@
 
 
 ; ------------------------------------- common functions -----------------------------------------------------------------------;
-;; inset new card 
-  (defn insert-card
-    ([{:keys [dataset_query description display name visualization_settings collection_id result_metadata]}]
-   ;; {name                   su/NonBlankString
-    ;; description            (s/maybe su/NonBlankString)
-    ; display                su/NonBlankString
-     ;collection_id          (s/maybe su/IntGreaterThanZero)
-    ; visualization_settings su/Map
-    ; result_metadata        (s/maybe results-metadata/ResultsMetadata)}
-    
-    (let [new-card (db/insert! Card
-             :creator_id             1
-             :dataset_query          dataset_query
-             :description            description
-             :display                display
-             :name                   name
-             :visualization_settings "{}"
-             :collection_id          collection_id
-             :result_metadata        result_metadata)]
 
-    (events/publish-event! :card-create new-card)
-    ;(hydrate new-card :creator :dashboard_count :labels :can_write :collection)
-  ))) 
 
+;; insert new card 
+(defn insert-card
+  ([{:keys [dataset_query description display name visualization_settings collection_id result_metadata]}]
+;; {name                   su/NonBlankString
+;; description            (s/maybe su/NonBlankString)
+; display                su/NonBlankString
+;collection_id          (s/maybe su/IntGreaterThanZero)
+; visualization_settings su/Map
+; result_metadata        (s/maybe results-metadata/ResultsMetadata)}
+
+  (let [new-card (db/insert! Card
+       :creator_id             1
+       :dataset_query          dataset_query
+       :description            description
+       :display                display
+       :name                   name
+       :visualization_settings "{}"
+       :collection_id          collection_id
+       :result_metadata        result_metadata)]
+
+      (events/publish-event! :card-create new-card)
+      (hydrate new-card :creator :dashboard_count :labels :can_write :collection)
+      (str new-card)))) 
 
 
 
