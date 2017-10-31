@@ -208,8 +208,8 @@
         (read-check Card card-id))
           (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
             (if-let [{field-id :id} (field-with-name field-name card)]
-              (let [new-card (bot/insert-card (bot/update-breakout card field-id))]
-                (pr-str new-card))))))))
+              (let [{card-id :id} (bot/insert-card (bot/update-breakout card field-id))]
+                (show card-id))))))))
 
 (defn- extract_filters [result_metadata, dataset_query]
   (str dataset_query))

@@ -123,8 +123,7 @@
        :result_metadata        result_metadata)]
 
       (events/publish-event! :card-create new-card)
-      (hydrate new-card :creator :dashboard_count :labels :can_write :collection)
-      (str new-card)))) 
+      (hydrate new-card :creator :dashboard_count :labels :can_write :collection)))) 
 
 
 
