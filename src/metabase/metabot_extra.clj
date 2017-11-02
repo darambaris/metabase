@@ -77,7 +77,7 @@
       ;; visualization depends agreggation type
       (case func  
             ;; count -> count of rows table name
-            "count" (str "count of " (first (str/split (str/lower-case (extract-table card)) #"\d+")))
+            "count" (str "number of " (first (str/split (str/lower-case (extract-table card)) #"\d+")))
             "sum" (str "is sum")
             (nil?) (str "There is no aggregation here.")))))
 
@@ -119,7 +119,7 @@
         (db/insert! CollectionRevision 
                :before (json/generate-string {:3 {(keyword (str collection_id)) "write"}})  ;; group metabot (default number) 
                :after  (json/generate-string {:3 {(keyword (str collection_id)) "write"}})  ;; group metabot (default number)
-               :user_id 1) ;; TO DO: create user metabot
+               :user_id 1) ;; TO DO: create user metabot 
         (int collection_id))
       (let [new-collection (db/insert! Collection 
           :name "metabot"
