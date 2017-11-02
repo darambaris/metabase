@@ -200,9 +200,11 @@
 (defn ^:metabot add-group-by
   ([]
     (str "I can add a new aggregation to the chosen card. Give me ID card and the field name you want to add. \n
-          Opticionally, you can give me the new card name :wink:"))
+          Optionally, you can give me the new card name :wink:"))
+  
   ([one-argument]
     (str "Uh oh! I need two arguments! :neutral_face: \n Give me ID card and the field name you want to add."))
+ 
   ([card-id-or-name, field-name & [card-name]]
     (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
       (do (with-metabot-permissions

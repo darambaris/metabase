@@ -26,6 +26,8 @@
             [metabase.integrations.slack :as slack]
             [metabase.models
              [card :refer [Card]]
+             [collection :refer [Collection]]
+             [collection-revision :refer [CollectionRevision]]
              [table :refer [Table]]
              [field :refer [Field]]
              [interface :as mi]
@@ -106,35 +108,48 @@
     (cond 
       (empty? card-name)  (assoc-in card [:name] (new-name card))              
       (string? card-name) (assoc-in card [:name] (str card-name)))))
-; ------------------------------------- common functions -----------------------------------------------------------------------;
 
+; ------------------------------------- common functions -----------------------------------------------------------------------;
+;; return metabot collection id - select or create row with name of "metabot" within collection table  
+;; questions created by metabot are stored in metabot collection 
+(defn find-metabot-collection-id []
+   (if-let [{collection_id :id} (db/select-one [Collection :id :name], :%lower.name [:like (str "metabot")])]
+      (do   
+        ;; history permissions collection 
+        (db/insert! CollectionRevision 
+               :before (json/generate-string {:3 {(keyword (str collection_id)) "write"}})  ;; group metabot (default number) 
+               :after  (json/generate-string {:3 {(keyword (str collection_id)) "write"}})  ;; group metabot (default number)
+               :user_id 1) ;; TO DO: create user metabot
+        (int collection_id))
+      (let [new-collection (db/insert! Collection 
+          :name "metabot"
+          :description "questions created by metabot"
+          :color "#A989C5")]
+         ;;Important: Give metabot permissions for your collection 
+         (let [{collection_id :id} (hydrate new-collection :creator :can_write)] 
+            (db/insert! Permissions 
+              :object (format "/collection/%d/" collection_id)
+              :group_id 3)) ;; group metabot (default number)
+            (find-metabot-collection-id))))
 
 ;; insert new card 
 (defn insert-card 
-  ([{:keys [dataset_query description display name visualization_settings collection_id result_metadata]}]
-;; {name                   su/NonBlankString
-;; description            (s/maybe su/NonBlankString)
-; display                su/NonBlankString
-;collection_id          (s/maybe su/IntGreaterThanZero)
-; visualization_settings su/Map
-; result_metadata        (s/maybe results-metadata/ResultsMetadata)}
+  ([{:keys [dataset_query description display name visualization_settings result_metadata]}]
+  {name                   su/NonBlankString
+   description            (s/maybe su/NonBlankString)
+   display                su/NonBlankString
+   visualization_settings su/Map
+   result_metadata        (s/maybe results-metadata/ResultsMetadata)}
 
   (let [new-card (db/insert! Card
-       :creator_id             1
+       :creator_id             1 ;; TO DO: create user metabot
        :dataset_query          dataset_query
        :description            description
        :display                display
        :name                   name
        :visualization_settings "{}"
-       :collection_id          collection_id
+       :collection_id          (find-metabot-collection-id)
        :result_metadata        result_metadata)]
 
       (events/publish-event! :card-create new-card)
       (hydrate new-card :creator :dashboard_count :labels :can_write :collection)))) 
-
-
-
-;;(format-info-card {:dataset_query {:database 2, :type "query", :query {:source_table 37, :filter ["AND" [">" ["field-id" 2273] 100]], :aggregation [["count"]], :breakout [["field-id" 2293]]}}})
-
-
-
