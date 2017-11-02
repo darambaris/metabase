@@ -214,6 +214,7 @@
               (let [{card-id :id} (bot/insert-card (bot/update-name (bot/update-breakout card field-id) card-name))] 
                 (show card-id))))))))
 
+
 (defn- extract_filters [result_metadata, dataset_query]
   (str dataset_query))
 ;;  (for [{display :display_name, special :special_type} result_metadata]
