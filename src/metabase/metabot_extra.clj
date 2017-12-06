@@ -30,6 +30,7 @@
              [collection-revision :refer [CollectionRevision]]
              [table :refer [Table]]
              [field :refer [Field]]
+             [user :refer [User]]
              [interface :as mi]
              [permissions :refer [Permissions]]
              [permissions-group :as perms-group]
@@ -110,16 +111,32 @@
       (string? card-name) (assoc-in card [:name] (str card-name)))))
 
 ; ------------------------------------- common functions -----------------------------------------------------------------------;
+;; return metabot user id - select or create row with name of "metabot" within user table 
+;; questions created by metabot contains your id
+(defn- find-metabot-user-id []
+  (if-let [{user_id :id} (db/select-one [User :id :first_name], :%lower.first_name [:like (str "metabot")])]
+    (int user_id)
+    (do 
+      (db/insert! User
+            :first_name "metabot"
+            :last_name ""
+            :email "default@email.com"
+            :password (let [chars (map char (range 33 127))
+                              password (take 12 (repeatedly #(rand-nth chars)))]
+                              (reduce str password)))
+      (find-metabot-user-id))))
+
+
 ;; return metabot collection id - select or create row with name of "metabot" within collection table  
 ;; questions created by metabot are stored in metabot collection 
-(defn find-metabot-collection-id []
+(defn- find-metabot-collection-id []
    (if-let [{collection_id :id} (db/select-one [Collection :id :name], :%lower.name [:like (str "metabot")])]
       (do   
         ;; history permissions collection 
         (db/insert! CollectionRevision 
                :before (json/generate-string {:3 {(keyword (str collection_id)) "write"}})  ;; group metabot (default number) 
                :after  (json/generate-string {:3 {(keyword (str collection_id)) "write"}})  ;; group metabot (default number)
-               :user_id 1) ;; TO DO: create user metabot 
+               :user_id (find-metabot-user-id)) ;; TO DO: create user metabot 
         (int collection_id))
       (let [new-collection (db/insert! Collection 
           :name "metabot"
@@ -132,6 +149,8 @@
               :group_id 3)) ;; group metabot (default number)
             (find-metabot-collection-id))))
 
+
+
 ;; insert new card 
 (defn insert-card 
   ([{:keys [dataset_query description display name visualization_settings result_metadata]}]
@@ -142,7 +161,7 @@
    result_metadata        (s/maybe results-metadata/ResultsMetadata)}
 
   (let [new-card (db/insert! Card
-       :creator_id             1 ;; TO DO: create user metabot
+       :creator_id             (find-metabot-user-id) 
        :dataset_query          dataset_query
        :description            description
        :display                display
