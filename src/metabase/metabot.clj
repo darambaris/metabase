@@ -181,7 +181,7 @@
 (defn ^:metabot info 
   "This function shows card infos like aggregations, filters and breakouts"
   ([]
-    (str "Show which info card? Give me a part of a card name or its ID and I can show it to you"))
+    (str "Show which info card? Give me a part of a card name or its ID and I can show it for you"))
   ([card-id-or-name]
     (if-let [{card-id :id} (id-or-name->card card-id-or-name)] ;; verify if was passed card name or card id
       (do (with-metabot-permissions
@@ -196,10 +196,9 @@
         (when (> (count <>) 1)
           (throw (Exception. (str "Could you be a little more specific? I found these fields with names that matched:\n")))))))))
 
-;; update own card, to do: create def add new card 
 (defn ^:metabot add-group-by
   ([]
-    (str "I can add a new aggregation to the chosen card. Give me ID card and the field name you want to add. \n
+    (str "I can add a new aggregation to the chosen card. Give me ID card and the field name you want to add or remove. \n
           Optionally, you can give me the new card name :wink:"))
   
   ([one-argument]
@@ -214,6 +213,40 @@
               (let [{card-id :id} (bot/insert-card (bot/update-name (bot/update-breakout card field-id) card-name))] 
                 (show card-id))))))))
 
+
+;; remove breakouts from card 
+;(defn ^:metabot remove-group-by
+;  ([]
+;    (str "I can remove all existing aggregations from the card. \n Give me ID card. \n
+;      If you want remove a specific existing aggregation, give me ID card and field name"))
+;  ([card-id-or-name & [field-name]]
+;    (if-let [{card-id :id} (id-or-name->card card-id-or-name)])
+;      (do (do-with-metabot-permissionsissions
+;        (read-check Card card-id))
+;          (let [card (db/select-one [Card :id :name :display :result_metadata :dataset_query], :id card-id)]
+;            (cond 
+;              (empty? field-name)
+;              (list?)
+;              )
+;            (if-let [{field-id :id} (field-with-name field-name card)]
+;              (let [{card-id :id} (bot/insert-card (bot/update-name (bot/remove-breakout card field-id) nil))] 
+;                (show card-id)))))))
+
+;(defn ^:metabot swap-group-by
+;  ([]
+;    (str "I can swap from existing aggregation to new aggregation. Give me ID card, the field name will be removed and the field will be added. \n
+;          Optionally, you can give me the new card name :wink:"))
+;  ([one-argument]
+;    (str "Uh oh! I need three arguments! :neutral_face: \n Give me ID card, the field name will be removed and the field will be added."))
+;  ([one-argument, two-argument]
+;    (str "Uh oh! I need three arguments! :neutral_face: \n Give me ID card, the field name will be removed and the field will be added."))
+;  ([card-id-or-name, field-name & [card-name]]
+;    (if-let [{card-id :id} (id-or-name->card card-id-or-name)]
+;      (do (with-metabot-permissions
+;        (read-check Card card-id))
+;    
+;    )
+;)
 
 (defn- extract_filters [result_metadata, dataset_query]
   (str dataset_query))

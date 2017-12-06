@@ -161,7 +161,7 @@
    result_metadata        (s/maybe results-metadata/ResultsMetadata)}
 
   (let [new-card (db/insert! Card
-       :creator_id             (find-metabot-user-id) ;; TO DO: create user metabot
+       :creator_id             (find-metabot-user-id) 
        :dataset_query          dataset_query
        :description            description
        :display                display
